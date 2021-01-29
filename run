@@ -1,0 +1,62 @@
+#!/usr/bin/env node
+
+const express = require("express");
+const bodyParser = require("body-parser");
+const app = express();
+const port = process.argv[2] || 3000;
+const fs = require("fs");
+
+const checkBodyStructure = req => {
+  if (!Array.isArray(req.body)) {
+    throw "Body should be an array";
+  }
+
+  if (!req.body[0].addr || !req.body[0].subver || !req.body[0].subver) {
+    throw "Fields is not as expected";
+  }
+};
+
+app.use(bodyParser.json());
+
+app.get("/", function(req, res) {
+  res.send("Post your getpeerinfo here so we can map the Myriad network");
+});
+
+app.post("/", function(req, res) {
+  const remoteIp =
+    req.headers["x-forwarded-for"] || req.connection.remoteAddress;
+
+  checkBodyStructure(req);
+
+  const subvers = {};
+
+  const peersInfo = req.body.map(({ addr, subver, version }) => {
+    if (subvers[subver] === undefined) {
+      subvers[subver] = 0;
+    }
+    subvers[subver] += 1;
+
+    return {
+      addr,
+      subver,
+      version
+    };
+  });
+
+  let subverStats = "";
+  Object.entries(subvers).forEach(([subver, count]) => {
+    subverStats += `${subver}: ${count}\n`;
+  });
+
+  fs.mkdirSync("./data", { recursive: true });
+  console.log(`Saving to data/${remoteIp}.json...`);
+  fs.writeFileSync(`./data/${remoteIp}.json`, JSON.stringify(peersInfo));
+
+  res.send(
+    `Thank you!\n\nHere is some stats we collected from your request:\n\n${subverStats}`
+  );
+});
+
+app.listen(port, () => {
+  console.log(`Listening at http://localhost:${port}`);
+});
